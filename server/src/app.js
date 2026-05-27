@@ -14,10 +14,10 @@ import { swaggerSpec } from "./swagger/swaggerSpec.js";
 export function createApp({ corsOrigin }) {
   const app = express();
 
-  // Security
+  // Security headers
   app.use(helmet());
 
-  // Request ID middleware
+  // Request ID
   app.use(requestIdMiddleware);
 
   // Logging
@@ -29,13 +29,31 @@ export function createApp({ corsOrigin }) {
     })
   );
 
-  // CORS
+  // ✅ CORS FIX (IMPORTANT FOR RENDER + VERCEL)
+  const allowedOrigins = [
+    "http://localhost:5173",
+    "http://localhost:8081",
+    "https://bill-generator-sage.vercel.app"
+  ];
+
   app.use(
     cors({
-      origin: ["http://localhost:5173", "http://localhost:8081"],
+      origin: function (origin, callback) {
+        // allow server-to-server or Postman (no origin)
+        if (!origin) return callback(null, true);
+
+        if (allowedOrigins.includes(origin)) {
+          return callback(null, true);
+        } else {
+          return callback(new Error("Not allowed by CORS"));
+        }
+      },
       credentials: true,
     })
   );
+
+  // Handle preflight requests
+  app.options("*", cors());
 
   // Body parser
   app.use(express.json({ limit: "2mb" }));
@@ -48,7 +66,7 @@ export function createApp({ corsOrigin }) {
     })
   );
 
-  // Health Check Route
+  // Health check
   app.get("/api/health", (_req, res) => {
     res.json({
       ok: true,
@@ -56,17 +74,13 @@ export function createApp({ corsOrigin }) {
     });
   });
 
-  // Swagger Docs
-  app.use(
-    "/api/docs",
-    swaggerUi.serve,
-    swaggerUi.setup(swaggerSpec)
-  );
+  // Swagger docs
+  app.use("/api/docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
-  // API Routes
+  // API routes
   app.use("/api", routes);
 
-  // Global Error Handler
+  // Error handler (must be last)
   app.use(errorHandler);
 
   return app;
