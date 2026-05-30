@@ -2,7 +2,8 @@ import { z } from "zod";
 
 export const invoiceCreateSchema = z.object({
   details: z.object({
-    invoiceNo: z.string().min(1)
+    invoiceTitle: z.string().optional().default("TAX INVOICE"),
+    invoiceNo: z.string().min(1),
   }),
   company: z.record(z.any()),
   buyer: z.record(z.any()),
@@ -13,6 +14,7 @@ export const invoiceCreateSchema = z.object({
   totalTax: z.number().optional().default(0),
   totalAmountInWords: z.string().optional().default("")
 });
+
 
 export const invoicesQuerySchema = z.object({
   q: z.string().optional().default(""),
