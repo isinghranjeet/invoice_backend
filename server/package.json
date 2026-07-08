@@ -1,6 +1,7 @@
 {
   "name": "happy-invoice-backend",
   "version": "1.0.0",
+  "description": "Happy Invoice Creator Backend",
   "main": "src/server.js",
   "type": "module",
   "scripts": {

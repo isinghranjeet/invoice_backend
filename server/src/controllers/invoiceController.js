@@ -96,3 +96,44 @@ export async function deleteInvoice(req, res, next) {
   }
 }
 
+export async function listInvoiceNumbers(req, res, next) {
+  try {
+    const ownerId = req.user.id;
+
+    const values = await Invoice.distinct("details.invoiceNo", {
+      ownerId,
+      "details.invoiceNo": { $type: "string", $ne: "" },
+    });
+
+    // Stable sort
+    const sorted = values
+      .filter((v) => typeof v === "string")
+      .sort((a, b) => a.localeCompare(b));
+
+    res.json({ items: sorted });
+  } catch (e) {
+    next(e);
+  }
+}
+
+export async function listQuotationNumbers(req, res, next) {
+  try {
+    const ownerId = req.user.id;
+
+    const values = await Invoice.distinct("details.quotationNo", {
+      ownerId,
+      "details.quotationNo": { $type: "string", $ne: "" },
+    });
+
+    const sorted = values
+      .filter((v) => typeof v === "string")
+      .sort((a, b) => a.localeCompare(b));
+
+    res.json({ items: sorted });
+  } catch (e) {
+    next(e);
+  }
+}
+
+
+

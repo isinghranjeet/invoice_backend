@@ -29,31 +29,35 @@ export function createApp({ corsOrigin }) {
     })
   );
 
-  // ✅ CORS FIX (IMPORTANT FOR RENDER + VERCEL)
-  const allowedOrigins = [
-    "http://localhost:5173",
-    "http://localhost:8081",
-    "https://bill-generator-sage.vercel.app"
-  ];
+  // ✅ CORS
+  // Must be registered BEFORE any API routes.
+  const corsOptions = {
+    origin: function (origin, callback) {
+      // allow server-to-server or tools like Postman (no origin)
+      if (!origin) return callback(null, true);
 
-  app.use(
-    cors({
-      origin: function (origin, callback) {
-        // allow server-to-server or Postman (no origin)
-        if (!origin) return callback(null, true);
+      const allowedOrigins = [
+        "https://invoice.eassytorent.in",
+        "http://localhost:5173",
+        "http://localhost:3000",
+      ];
 
-        if (allowedOrigins.includes(origin)) {
-          return callback(null, true);
-        } else {
-          return callback(new Error("Not allowed by CORS"));
-        }
-      },
-      credentials: true,
-    })
-  );
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
 
-  // Handle preflight requests
-  app.options("*", cors());
+      return callback(new Error("Not allowed by CORS"));
+    },
+    credentials: false,
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  };
+
+  app.use(cors(corsOptions));
+
+  // Handle preflight requests explicitly.
+  app.options("*", cors(corsOptions));
+
 
   // Body parser
   app.use(express.json({ limit: "2mb" }));

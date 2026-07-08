@@ -4,6 +4,7 @@ export const invoiceCreateSchema = z.object({
   details: z.object({
     invoiceTitle: z.string().optional().default("TAX INVOICE"),
     invoiceNo: z.string().min(1),
+    quotationNo: z.string().optional(),
   }),
   company: z.record(z.any()),
   buyer: z.record(z.any()),
