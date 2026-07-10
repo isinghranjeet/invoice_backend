@@ -37,10 +37,13 @@ export function createApp({ corsOrigin }) {
       if (!origin) return callback(null, true);
 
       const allowedOrigins = [
-        "https://invoice.eassytorent.in",
-        "http://localhost:5173",
-        "http://localhost:3000",
-      ];
+  "https://invoice.eassytorent.in",
+  "https://invoice.easytorent.in",
+  "http://localhost:3000",
+  "http://localhost:5173",
+  "http://localhost:8081",
+  "http://localhost:8082",
+];
 
       if (allowedOrigins.includes(origin)) {
         return callback(null, true);
