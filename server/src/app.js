@@ -81,6 +81,17 @@ export function createApp({ corsOrigin }) {
     });
   });
 
+
+
+app.get("/api/ping", (req, res) => {
+  res.status(200).json({
+    success: true,
+    message: "Invoice Backend Running",
+    time: new Date().toISOString(),
+  });
+});
+
+
   // Swagger docs
   app.use("/api/docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
