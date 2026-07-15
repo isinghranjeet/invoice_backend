@@ -15,7 +15,13 @@ const invoiceSchema = new mongoose.Schema(
     totalTax: { type: Number, default: 0 },
     totalAmountInWords: { type: String, default: "" },
 
-    savedAt: { type: Date, default: Date.now }
+    savedAt: { type: Date, default: Date.now },
+
+    // Persistent invoice timestamps
+    // - createdAt is set once (on first creation)
+    // - updatedAt is updated on edits
+    createdAt: { type: Date },
+    updatedAt: { type: Date }
   },
   { timestamps: false }
 );

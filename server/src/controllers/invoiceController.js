@@ -19,7 +19,17 @@ export async function createOrUpsertInvoice(req, res, next) {
           totalAmount: payload.totalAmount,
           totalTax: payload.totalTax,
           totalAmountInWords: payload.totalAmountInWords,
-          savedAt: new Date(),
+
+          // Timestamp persistence:
+          // - createdAt must never be overwritten on upsert updates
+          // - updatedAt is always set on each save
+          updatedAt: new Date(),
+        },
+
+        // If this document is new, set createdAt. If it already exists,
+        // preserve existing createdAt (and do not write a new one).
+        $setOnInsert: {
+          createdAt: new Date()
         },
       },
       { new: true, upsert: true }
@@ -81,6 +91,7 @@ export async function listInvoices(req, res, next) {
     return next(e);
   }
 }
+
 
 export async function deleteInvoice(req, res, next) {
   try {
