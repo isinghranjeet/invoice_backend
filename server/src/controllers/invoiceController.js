@@ -63,13 +63,15 @@ function resolveSettingsForSnapshot(settingsDoc) {
 
 export async function createOrUpsertInvoice(req, res, next) {
   try {
-    const payload = invoiceCreateSchema.parse(req.body);
+    console.log("[invoiceController] Request body:", JSON.stringify(req.body, null, 2));
+const payload = invoiceCreateSchema.parse(req.body);
 
-    // Upsert must preserve existing invoices.
-    const existing = await Invoice.findOne({
-      ownerId: req.user.id,
-      "details.invoiceNo": payload.details.invoiceNo,
-    });
+    // Build the lookup query for existing document.
+    // For quotations, invoiceNo is empty string so we must also match on quotationNo.
+    const existingQuery = payload.details.invoiceNo
+      ? { ownerId: req.user.id, "details.invoiceNo": payload.details.invoiceNo }
+      : { ownerId: req.user.id, "details.quotationNo": payload.details.quotationNo };
+    const existing = await Invoice.findOne(existingQuery);
 
 if (existing) {
       // Existing invoice: never re-snapshot from live Settings.
