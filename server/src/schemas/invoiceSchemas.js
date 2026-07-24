@@ -11,6 +11,12 @@ export const invoiceCreateSchema = z.object({
   consignee: z.record(z.any()),
   items: z.array(z.record(z.any())),
   remarks: z.string().optional().default(""),
+  discount: z
+    .object({
+      type: z.enum(["percentage", "fixed"]),
+      value: z.number(),
+    })
+    .optional(),
   totalAmount: z.number(),
   totalTax: z.number().optional().default(0),
   totalAmountInWords: z.string().optional().default("")
