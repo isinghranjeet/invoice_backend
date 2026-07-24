@@ -75,8 +75,13 @@ const payload = invoiceCreateSchema.parse(req.body);
 
 if (existing) {
       // Existing invoice: never re-snapshot from live Settings.
+      // Use the correct lookup field: for quotations match on quotationNo, for invoices match on invoiceNo
+      const updateQuery = payload.details.invoiceNo
+        ? { ownerId: req.user.id, "details.invoiceNo": payload.details.invoiceNo }
+        : { ownerId: req.user.id, "details.quotationNo": payload.details.quotationNo };
+
       const updated = await Invoice.findOneAndUpdate(
-        { ownerId: req.user.id, "details.invoiceNo": payload.details.invoiceNo },
+        updateQuery,
         {
           $set: {
             company: payload.company,
@@ -98,7 +103,7 @@ if (existing) {
       return;
     }
 
-    // New invoice/quotation: snapshot resolved company + bank + remarks from MongoDB Settings.
+// New invoice/quotation: snapshot resolved company + bank + remarks from MongoDB Settings.
     let settingsDoc = await Settings.findOne({});
     if (!settingsDoc) {
       // get resolved fallbacks only (no persistent doc)
@@ -116,8 +121,14 @@ if (existing) {
 
   const resolved = resolveSettingsForSnapshot(settingsDoc);
 
+    // For new quotations, use quotationNo in the filter; for new invoices use invoiceNo.
+    // This prevents the upsert from matching multiple documents with empty invoiceNo.
+    const newDocFilter = payload.details.invoiceNo
+      ? { ownerId: req.user.id, "details.invoiceNo": payload.details.invoiceNo }
+      : { ownerId: req.user.id, "details.quotationNo": payload.details.quotationNo };
+
     const updated = await Invoice.findOneAndUpdate(
-      { ownerId: req.user.id, "details.invoiceNo": payload.details.invoiceNo },
+      newDocFilter,
       {
         $set: {
 // Snapshot company/bank defaults

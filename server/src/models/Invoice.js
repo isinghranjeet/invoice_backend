@@ -40,7 +40,18 @@ const invoiceSchema = new mongoose.Schema(
   { timestamps: false }
 );
 
-invoiceSchema.index({ ownerId: 1, "details.invoiceNo": 1 }, { unique: true });
+// Unique index for invoices (where invoiceNo is non-empty).
+// Quotations have invoiceNo="" so this partial index only applies to actual invoices.
+invoiceSchema.index(
+  { ownerId: 1, "details.invoiceNo": 1 },
+  { unique: true, partialFilterExpression: { "details.invoiceNo": { $type: "string", $ne: "" } } }
+);
+
+// Secondary index for quotations (where quotationNo is non-empty).
+invoiceSchema.index(
+  { ownerId: 1, "details.quotationNo": 1 },
+  { unique: true, partialFilterExpression: { "details.quotationNo": { $type: "string", $ne: "" } } }
+);
 
 export const Invoice = mongoose.model("Invoice", invoiceSchema);
 
