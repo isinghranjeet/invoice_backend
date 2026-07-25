@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import { Invoice } from "../models/Invoice.js";
 import { Settings } from "../models/Settings.js";
 import { invoiceCreateSchema, invoicesQuerySchema } from "../schemas/invoiceSchemas.js";
@@ -200,10 +201,51 @@ if (existing) {
 
 export async function getInvoice(req, res, next) {
   try {
-    const invoice = await Invoice.findOne({
+    const { invoiceNo } = req.params;
+    console.log("[DEBUG getInvoice] req.params.invoiceNo:", JSON.stringify(invoiceNo));
+    console.log("[DEBUG getInvoice] invoiceNo type:", typeof invoiceNo);
+    console.log("[DEBUG getInvoice] invoiceNo length:", invoiceNo?.length);
+    console.log("[DEBUG getInvoice] invoiceNo char codes:", Array.from(invoiceNo || "").map(c => c.charCodeAt(0)));
+
+    // Primary lookup by invoice number
+    let invoice = await Invoice.findOne({
       ownerId: req.user.id,
-      "details.invoiceNo": req.params.invoiceNo,
+      "details.invoiceNo": invoiceNo,
     });
+    console.log("[DEBUG getInvoice] invoiceNo lookup result:", invoice ? invoice._id : "null");
+
+    // Fallback: try by quotationNo (quotations have invoiceNo="")
+    if (!invoice) {
+      invoice = await Invoice.findOne({
+        ownerId: req.user.id,
+        "details.quotationNo": invoiceNo,
+      });
+      console.log("[DEBUG getInvoice] quotationNo lookup result:", invoice ? invoice._id : "null");
+    }
+
+    // Fallback: try by MongoDB _id (for backward compatibility with direct MongoDB links)
+    if (!invoice && mongoose.Types.ObjectId.isValid(invoiceNo)) {
+      invoice = await Invoice.findOne({
+        ownerId: req.user.id,
+        _id: invoiceNo,
+      });
+      console.log("[DEBUG getInvoice] _id lookup result:", invoice ? invoice._id : "null");
+    }
+
+    // DEBUG: If still not found, log the first 10 invoices for this user to see what's stored
+    if (!invoice) {
+      const sampleDocs = await Invoice.find({ ownerId: req.user.id }).limit(10).lean();
+      console.log("[DEBUG getInvoice] Sample invoice fields for this user:");
+      sampleDocs.forEach((doc, i) => {
+        console.log(`  [${i}] _id=${doc._id}`);
+        console.log(`  [${i}] details.invoiceNo=${JSON.stringify(doc.details?.invoiceNo)} (type=${typeof doc.details?.invoiceNo})`);
+        console.log(`  [${i}] details.quotationNo=${JSON.stringify(doc.details?.quotationNo)} (type=${typeof doc.details?.quotationNo})`);
+        console.log(`  [${i}] details keys=${Object.keys(doc.details || {})}`);
+        // Check if invoiceNo is stored elsewhere
+        console.log(`  [${i}] typeof details=${typeof doc.details}`);
+        console.log(`  [${i}] details value:`, JSON.stringify(doc.details).substring(0, 300));
+      });
+    }
 
     if (!invoice) throw new ApiError(404, "Invoice not found");
     res.json(invoice);
@@ -252,10 +294,29 @@ export async function listInvoices(req, res, next) {
 
 export async function deleteInvoice(req, res, next) {
   try {
-    const deleted = await Invoice.findOneAndDelete({
+    const { invoiceNo } = req.params;
+
+    // Primary lookup by invoice number
+    let deleted = await Invoice.findOneAndDelete({
       ownerId: req.user.id,
-      "details.invoiceNo": req.params.invoiceNo,
+      "details.invoiceNo": invoiceNo,
     });
+
+    // Fallback: try by quotationNo (quotations have invoiceNo="")
+    if (!deleted) {
+      deleted = await Invoice.findOneAndDelete({
+        ownerId: req.user.id,
+        "details.quotationNo": invoiceNo,
+      });
+    }
+
+    // Fallback: try by MongoDB _id (for backward compatibility)
+    if (!deleted && mongoose.Types.ObjectId.isValid(invoiceNo)) {
+      deleted = await Invoice.findOneAndDelete({
+        ownerId: req.user.id,
+        _id: invoiceNo,
+      });
+    }
 
     if (!deleted) throw new ApiError(404, "Invoice not found");
     res.json({ ok: true });
@@ -298,6 +359,37 @@ export async function listQuotationNumbers(req, res, next) {
       .sort((a, b) => a.localeCompare(b));
 
     res.json({ items: sorted });
+  } catch (e) {
+    next(e);
+  }
+}
+
+/**
+ * TEMP DEBUG: Dump invoice identifiers for debugging Quotation 404 issue.
+ * Only active when req.query.debug === "quotation-404"
+ */
+export async function debugDumpInvoices(req, res, next) {
+  try {
+    if (req.query.debug !== "quotation-404") {
+      return res.json({ ok: false, message: "Set ?debug=quotation-404" });
+    }
+
+    const ownerId = req.user.id;
+    const docs = await Invoice.find({ ownerId }).limit(20).sort({ savedAt: -1 }).lean();
+
+    const summary = docs.map((d) => ({
+      _id: d._id.toString(),
+      invoiceNo: d.details?.invoiceNo,
+      invoiceNoType: typeof d.details?.invoiceNo,
+      invoiceNoLen: d.details?.invoiceNo?.length,
+      quotationNo: d.details?.quotationNo,
+      quotationNoType: typeof d.details?.quotationNo,
+      quotationNoLen: d.details?.quotationNo?.length,
+      invoiceTitle: d.details?.invoiceTitle,
+      detailsInvoiceNoBytes: Array.from(String(d.details?.invoiceNo ?? "")).map((c) => c.charCodeAt(0)),
+    }));
+
+    res.json({ count: docs.length, invoices: summary });
   } catch (e) {
     next(e);
   }
