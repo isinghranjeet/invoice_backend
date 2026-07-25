@@ -202,53 +202,31 @@ if (existing) {
 export async function getInvoice(req, res, next) {
   try {
     const { invoiceNo } = req.params;
-    console.log("[DEBUG getInvoice] req.params.invoiceNo:", JSON.stringify(invoiceNo));
-    console.log("[DEBUG getInvoice] invoiceNo type:", typeof invoiceNo);
-    console.log("[DEBUG getInvoice] invoiceNo length:", invoiceNo?.length);
-    console.log("[DEBUG getInvoice] invoiceNo char codes:", Array.from(invoiceNo || "").map(c => c.charCodeAt(0)));
 
-    // Primary lookup by invoice number
-    let invoice = await Invoice.findOne({
-      ownerId: req.user.id,
-      "details.invoiceNo": invoiceNo,
-    });
-    console.log("[DEBUG getInvoice] invoiceNo lookup result:", invoice ? invoice._id : "null");
-
-    // Fallback: try by quotationNo (quotations have invoiceNo="")
-    if (!invoice) {
-      invoice = await Invoice.findOne({
-        ownerId: req.user.id,
-        "details.quotationNo": invoiceNo,
-      });
-      console.log("[DEBUG getInvoice] quotationNo lookup result:", invoice ? invoice._id : "null");
-    }
-
-    // Fallback: try by MongoDB _id (for backward compatibility with direct MongoDB links)
-    if (!invoice && mongoose.Types.ObjectId.isValid(invoiceNo)) {
-      invoice = await Invoice.findOne({
+    // Priority 1: Try by MongoDB _id (stable, unique, works for all document types)
+    if (mongoose.Types.ObjectId.isValid(invoiceNo)) {
+      const invoice = await Invoice.findOne({
         ownerId: req.user.id,
         _id: invoiceNo,
       });
-      console.log("[DEBUG getInvoice] _id lookup result:", invoice ? invoice._id : "null");
+      if (invoice) return res.json(invoice);
     }
 
-    // DEBUG: If still not found, log the first 10 invoices for this user to see what's stored
-    if (!invoice) {
-      const sampleDocs = await Invoice.find({ ownerId: req.user.id }).limit(10).lean();
-      console.log("[DEBUG getInvoice] Sample invoice fields for this user:");
-      sampleDocs.forEach((doc, i) => {
-        console.log(`  [${i}] _id=${doc._id}`);
-        console.log(`  [${i}] details.invoiceNo=${JSON.stringify(doc.details?.invoiceNo)} (type=${typeof doc.details?.invoiceNo})`);
-        console.log(`  [${i}] details.quotationNo=${JSON.stringify(doc.details?.quotationNo)} (type=${typeof doc.details?.quotationNo})`);
-        console.log(`  [${i}] details keys=${Object.keys(doc.details || {})}`);
-        // Check if invoiceNo is stored elsewhere
-        console.log(`  [${i}] typeof details=${typeof doc.details}`);
-        console.log(`  [${i}] details value:`, JSON.stringify(doc.details).substring(0, 300));
-      });
-    }
+    // Priority 2: Try by invoice number
+    const invByNo = await Invoice.findOne({
+      ownerId: req.user.id,
+      "details.invoiceNo": invoiceNo,
+    });
+    if (invByNo) return res.json(invByNo);
 
-    if (!invoice) throw new ApiError(404, "Invoice not found");
-    res.json(invoice);
+    // Priority 3: Try by quotation number (quotations have invoiceNo="")
+    const invByQuo = await Invoice.findOne({
+      ownerId: req.user.id,
+      "details.quotationNo": invoiceNo,
+    });
+    if (invByQuo) return res.json(invByQuo);
+
+    throw new ApiError(404, "Invoice not found");
   } catch (e) {
     next(e);
   }
