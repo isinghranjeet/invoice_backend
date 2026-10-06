@@ -63,12 +63,8 @@ function buildSingleSettingsFromDoc(doc) {
 }
 
 
-async function getOrCreateSingleSettings() {
-  let settings = await Settings.findOne({});
-  if (!settings) {
-    settings = await Settings.create(Settings.getDefaultValues());
-  }
-  return settings;
+async function getOrCreateAdminSettings(req) {
+  return Settings.getOrCreateForOwner(req.user.id);
 }
 
 function sanitizeRemarksList(remarks) {
@@ -81,10 +77,10 @@ function sanitizeRemarksList(remarks) {
   );
 }
 
-export async function getSettings(_req, res, next) {
+export async function getSettings(req, res, next) {
   try {
 
-    const settingsDoc = await getOrCreateSingleSettings();
+    const settingsDoc = await getOrCreateAdminSettings(req);
     return res.json({ ok: true, settings: buildSingleSettingsFromDoc(settingsDoc.toObject()) });
   } catch (e) {
     next(e);
@@ -100,7 +96,7 @@ export async function upsertSettings(req, res, next) {
     // sanitize remarks: trim, drop empty, de-dupe
     const sanitizedRemarks = sanitizeRemarksList(payload.remarks);
 
-    const settingsDoc = await getOrCreateSingleSettings();
+    const settingsDoc = await getOrCreateAdminSettings(req);
 
     // Field-by-field assignment (do not replace objects)
     settingsDoc.companyName = payload.companyName;
@@ -142,7 +138,7 @@ export async function upsertSettings(req, res, next) {
 export async function updateRemarks(req, res, next) {
   try {
     const payload = remarksUpdateSchema.parse(req.body);
-    const settings = await getOrCreateSingleSettings();
+    const settings = await getOrCreateAdminSettings(req);
 
     const sanitizedRemarks = sanitizeRemarksList(payload.remarks);
 
@@ -160,7 +156,7 @@ export async function updateRemarks(req, res, next) {
 export async function updateCompanyProfile(req, res, next) {
   try {
     const payload = companyProfileUpdateSchema.parse(req.body);
-    const settings = await getOrCreateSingleSettings();
+    const settings = await getOrCreateAdminSettings(req);
 
     settings.companyName = payload.name;
     settings.address = payload.address;
@@ -180,7 +176,7 @@ export async function updateCompanyProfile(req, res, next) {
 export async function updateInvoiceNumberSettings(req, res, next) {
   try {
     const payload = invoiceNumberSettingsUpdateSchema.parse(req.body);
-    const settings = await getOrCreateSingleSettings();
+    const settings = await getOrCreateAdminSettings(req);
 
     settings.invoicePrefix = payload.invoicePrefix;
     settings.quotationPrefix = payload.quotationPrefix;
@@ -207,7 +203,7 @@ function formatThreeDigitSuffix(prefix, n) {
 // Consumption (increment) happens in consumeDocumentNumber to keep numbering atomic.
 export async function nextInvoiceNumber(req, res, next) {
   try {
-    const settings = await getOrCreateSingleSettings();
+    const settings = await getOrCreateAdminSettings(req);
     const invoiceNo = formatThreeDigitSuffix(settings.invoicePrefix, settings.invoiceStartNumber);
     return res.json({ ok: true, invoiceNo });
   } catch (e) {
@@ -217,7 +213,7 @@ export async function nextInvoiceNumber(req, res, next) {
 
 export async function nextQuotationNumber(req, res, next) {
   try {
-    const settings = await getOrCreateSingleSettings();
+    const settings = await getOrCreateAdminSettings(req);
     const quotationNo = formatThreeDigitSuffix(settings.quotationPrefix, settings.quotationStartNumber);
     return res.json({ ok: true, quotationNo });
   } catch (e) {
@@ -228,7 +224,7 @@ export async function nextQuotationNumber(req, res, next) {
 // Used by legacy UI: returns prefixes + numeric "next".
 export async function nextDocumentNumbers(req, res, next) {
   try {
-    const settings = await getOrCreateSingleSettings();
+    const settings = await getOrCreateAdminSettings(req);
 
     return res.json({
       ok: true,
@@ -252,7 +248,7 @@ export async function consumeDocumentNumber(req, res, next) {
     }
 
 
-    const settings = await getOrCreateSingleSettings();
+    const settings = await getOrCreateAdminSettings(req);
 
     if (documentType === "invoice") {
       const invoiceNo = formatThreeDigitSuffix(settings.invoicePrefix, settings.invoiceStartNumber);

@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 
 const settingsSchema = new mongoose.Schema(
   {
+    ownerId: { type: mongoose.Schema.Types.ObjectId, sparse: true, unique: true, index: true },
     companyName: { type: String, default: "" },
     address: { type: String, default: "" },
     gstNumber: { type: String, default: "" },
@@ -55,6 +56,29 @@ settingsSchema.statics.getDefaultValues = function () {
       branch: "",
     },
   };
+};
+
+settingsSchema.statics.getOrCreateForOwner = async function (ownerId) {
+  const existing = await this.findOne({ ownerId });
+  if (existing) return existing;
+
+  const legacy = await this.findOneAndUpdate(
+    { ownerId: { $exists: false } },
+    { $set: { ownerId } },
+    { new: true }
+  );
+  if (legacy) return legacy;
+
+  try {
+    return await this.findOneAndUpdate(
+      { ownerId },
+      { $setOnInsert: { ...this.getDefaultValues(), ownerId } },
+      { new: true, upsert: true, setDefaultsOnInsert: true }
+    );
+  } catch (error) {
+    if (error?.code !== 11000) throw error;
+    return this.findOne({ ownerId });
+  }
 };
 
 export const Settings = mongoose.model("Settings", settingsSchema);

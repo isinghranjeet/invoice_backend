@@ -28,6 +28,8 @@ const invoiceSchema = new mongoose.Schema(
     totalAmount: { type: Number, required: true },
     totalTax: { type: Number, default: 0 },
     totalAmountInWords: { type: String, default: "" },
+    paymentStatus: { type: String, enum: ["unpaid", "partial", "paid"] },
+    amountPaid: { type: Number, min: 0 },
 
     savedAt: { type: Date, default: Date.now },
 

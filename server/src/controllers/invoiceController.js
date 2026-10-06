@@ -72,7 +72,28 @@ const payload = invoiceCreateSchema.parse(req.body);
     const existingQuery = payload.details.invoiceNo
       ? { ownerId: req.user.id, "details.invoiceNo": payload.details.invoiceNo }
       : { ownerId: req.user.id, "details.quotationNo": payload.details.quotationNo };
-    const existing = await Invoice.findOne(existingQuery);
+    let existing = await Invoice.findOne(existingQuery);
+
+    // =========================================================================
+    // BUGFIX: Prevent duplicate document creation during Quotation → Invoice
+    // conversion.
+    //
+    // Root cause: When a Quotation (invoiceNo="", quotationNo="QT-001") is
+    // converted into an Invoice (invoiceNo="INV-001", quotationNo="QT-001"),
+    // the upsert filter above uses invoiceNo → finds no document (original had
+    // invoiceNo="") → falls to the "new document" creation path → creates a
+    // SECOND document instead of updating the original quotation.
+    //
+    // Fix: If the invoiceNo lookup returned null and the payload has a non-empty
+    // quotationNo, also search by quotationNo. If found, update that existing
+    // document (preserving its _id, createdAt, and quotationNo).
+    // =========================================================================
+    if (!existing && payload.details.quotationNo && payload.details.quotationNo.trim() !== "") {
+      existing = await Invoice.findOne({
+        ownerId: req.user.id,
+        "details.quotationNo": payload.details.quotationNo,
+      });
+    }
 
 if (existing) {
       // Existing invoice: never re-snapshot from live Settings.
@@ -95,6 +116,8 @@ if (existing) {
             totalAmount: payload.totalAmount,
             totalTax: payload.totalTax,
             totalAmountInWords: payload.totalAmountInWords,
+            ...(payload.paymentStatus !== undefined ? { paymentStatus: payload.paymentStatus } : {}),
+            ...(payload.amountPaid !== undefined ? { amountPaid: payload.amountPaid } : {}),
             updatedAt: new Date(),
           },
         }
@@ -105,7 +128,7 @@ if (existing) {
     }
 
 // New invoice/quotation: snapshot resolved company + bank + remarks from MongoDB Settings.
-    let settingsDoc = await Settings.findOne({});
+    let settingsDoc = await Settings.getOrCreateForOwner(req.user.id);
     if (!settingsDoc) {
       // get resolved fallbacks only (no persistent doc)
       settingsDoc = {
@@ -182,6 +205,8 @@ if (existing) {
           totalAmount: payload.totalAmount,
           totalTax: payload.totalTax,
           totalAmountInWords: payload.totalAmountInWords,
+          paymentStatus: payload.paymentStatus ?? "unpaid",
+          amountPaid: payload.amountPaid ?? 0,
           updatedAt: new Date(),
         },
         $setOnInsert: {

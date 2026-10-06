@@ -19,7 +19,9 @@ export const invoiceCreateSchema = z.object({
     .optional(),
   totalAmount: z.number(),
   totalTax: z.number().optional().default(0),
-  totalAmountInWords: z.string().optional().default("")
+  totalAmountInWords: z.string().optional().default(""),
+  paymentStatus: z.enum(["unpaid", "partial", "paid"]).optional(),
+  amountPaid: z.number().nonnegative().optional()
 });
 
 
